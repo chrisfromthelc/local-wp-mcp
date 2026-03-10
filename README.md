@@ -29,7 +29,22 @@ Unlike REST API-based WordPress MCP servers, this connects directly through Loca
 
 ## Setup
 
-### With Claude Code
+### Quick setup (recommended)
+
+Run this from your Local site's project directory (e.g., `~/Local Sites/mysite/app/public/`):
+
+```bash
+npx -y @chrisfromthelc/local-wp-mcp --setup
+```
+
+This will:
+- Auto-detect the Local site from your current directory
+- Create or merge into an existing `.mcp.json`
+- Pre-fill `SITE_NAME` and set write permissions to `false`
+
+Then restart Claude Code to connect.
+
+### Manual setup
 
 Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/public/` folder):
 
@@ -42,8 +57,8 @@ Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/p
       "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
       "env": {
         "SITE_NAME": "your-site-name",
-        "WPCLI_ALLOW_WRITES": "true",
-        "MYSQL_ALLOW_WRITES": "true"
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false"
       }
     }
   }
@@ -77,8 +92,8 @@ Then use a local path in `.mcp.json` instead:
       "args": ["/path/to/local-wp-mcp/dist/index.js"],
       "env": {
         "SITE_NAME": "your-site-name",
-        "WPCLI_ALLOW_WRITES": "true",
-        "MYSQL_ALLOW_WRITES": "true"
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false"
       }
     }
   }
