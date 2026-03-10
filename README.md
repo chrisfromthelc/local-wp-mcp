@@ -55,7 +55,7 @@ Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/p
 Or add via CLI:
 
 ```bash
-claude mcp add local-wp --project -- npx -y @chrisfromthelc/local-wp-mcp
+claude mcp add -s project local-wp -- npx -y @chrisfromthelc/local-wp-mcp
 ```
 
 ### From source (development)
