@@ -29,25 +29,17 @@ Unlike REST API-based WordPress MCP servers, this connects directly through Loca
 
 ## Setup
 
-### Install from source
+### With Claude Code
 
-```bash
-git clone https://github.com/chrisfromthelc/local-wp-mcp.git
-cd local-wp-mcp
-npm install
-```
-
-### With Claude Code (project-scoped)
-
-Add a `.mcp.json` to your WordPress project root. This config is **project-scoped** and takes precedence over user-level settings in `~/.claude.json`:
+Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/public/` folder):
 
 ```json
 {
   "mcpServers": {
     "local-wp": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/absolute/path/to/local-wp-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
       "env": {
         "SITE_NAME": "your-site-name",
         "WPCLI_ALLOW_WRITES": "true",
@@ -63,7 +55,34 @@ Add a `.mcp.json` to your WordPress project root. This config is **project-scope
 Or add via CLI:
 
 ```bash
-claude mcp add local-wp --project -- node /absolute/path/to/local-wp-mcp/dist/index.js
+claude mcp add local-wp --project -- npx -y @chrisfromthelc/local-wp-mcp
+```
+
+### From source (development)
+
+```bash
+git clone https://github.com/chrisfromthelc/local-wp-mcp.git
+cd local-wp-mcp
+npm install
+```
+
+Then use a local path in `.mcp.json` instead:
+
+```json
+{
+  "mcpServers": {
+    "local-wp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/local-wp-mcp/dist/index.js"],
+      "env": {
+        "SITE_NAME": "your-site-name",
+        "WPCLI_ALLOW_WRITES": "true",
+        "MYSQL_ALLOW_WRITES": "true"
+      }
+    }
+  }
+}
 ```
 
 ### Environment Variables
