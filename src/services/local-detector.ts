@@ -109,29 +109,76 @@ export function getPlatformBinDir(): string {
   return 'linux';
 }
 
-export function getPhpBinDir(site: LocalSiteConfig): string {
+/**
+ * The sites.json version (e.g., "8.4.4") may not exactly match the
+ * lightning-services folder name (e.g., "php-8.4.4+2"). Glob to find
+ * the matching directory.
+ */
+async function findServiceDir(serviceName: string, version: string): Promise<string> {
   const dataDir = getLocalDataDir();
-  const platform = getPlatformBinDir();
-  return path.join(
-    dataDir, 'lightning-services',
-    `php-${site.services.php.version}`, 'bin', platform, 'bin'
-  );
+  const servicesDir = path.join(dataDir, 'lightning-services');
+
+  try {
+    const entries = await fs.readdir(servicesDir);
+    // Look for exact match first (service-version), then prefix match (service-version+N)
+    const prefix = `${serviceName}-${version}`;
+    const exact = entries.find((e) => e === prefix);
+    if (exact) return path.join(servicesDir, exact);
+
+    const prefixed = entries
+      .filter((e) => e.startsWith(prefix))
+      .sort()
+      .reverse(); // highest patch first
+    if (prefixed.length > 0) return path.join(servicesDir, prefixed[0]);
+
+    throw new Error(`No lightning-services directory found for ${serviceName}-${version}`);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`lightning-services directory not found at ${servicesDir}`);
+    }
+    throw err;
+  }
 }
 
-export function getMysqlBinDir(site: LocalSiteConfig): string {
-  const dataDir = getLocalDataDir();
+export async function getPhpBinDir(site: LocalSiteConfig): Promise<string> {
   const platform = getPlatformBinDir();
-  return path.join(
-    dataDir, 'lightning-services',
-    `mysql-${site.services.mysql.version}`, 'bin', platform, 'bin'
-  );
+  const serviceDir = await findServiceDir('php', site.services.php.version);
+  return path.join(serviceDir, 'bin', platform, 'bin');
+}
+
+/**
+ * Get the DB service entry — supports both mysql and mariadb.
+ */
+function getDbService(site: LocalSiteConfig): { name: string; version: string } {
+  const mysql = site.services.mysql;
+  if (mysql) return { name: 'mysql', version: mysql.version };
+
+  const mariadb = site.services.mariadb;
+  if (mariadb) return { name: 'mariadb', version: mariadb.version };
+
+  throw new Error(`No database service found for site "${site.name}"`);
+}
+
+export async function getMysqlBinDir(site: LocalSiteConfig): Promise<string> {
+  const platform = getPlatformBinDir();
+  const db = getDbService(site);
+  const serviceDir = await findServiceDir(db.name, db.version);
+  return path.join(serviceDir, 'bin', platform, 'bin');
+}
+
+/**
+ * Derive paths not present in sites.json:
+ * - webRoot: {site.path}/app/public
+ * - runData: {localDataDir}/run/{site.id}
+ */
+export function getWebRoot(site: LocalSiteConfig): string {
+  return path.join(resolvePath(site.path), 'app', 'public');
+}
+
+export function getRunDataDir(site: LocalSiteConfig): string {
+  return path.join(getLocalDataDir(), 'run', site.id);
 }
 
 export function getMysqlSocketPath(site: LocalSiteConfig): string {
-  const runData = resolvePath(site.paths.runData);
-  return path.join(runData, 'mysql', 'mysqld.sock');
-}
-
-export function getWebRoot(site: LocalSiteConfig): string {
-  return resolvePath(site.paths.webRoot);
+  return path.join(getRunDataDir(site), 'mysql', 'mysqld.sock');
 }

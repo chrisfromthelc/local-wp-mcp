@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import type { LocalSiteConfig } from '../types.js';
-import { resolvePath } from './local-detector.js';
+import { resolvePath, getWebRoot } from './local-detector.js';
 
 const MAX_FILE_SIZE = 512 * 1024; // 512KB read limit
 const MAX_OUTPUT_LINES = 500;
@@ -79,7 +79,7 @@ export async function writeFile(
   site: LocalSiteConfig,
 ): Promise<{ path: string; size: number }> {
   const resolved = await validatePath(filePath, site);
-  const webRoot = resolvePath(site.paths.webRoot);
+  const webRoot = getWebRoot(site);
 
   if (isReadOnlyPath(resolved, webRoot)) {
     throw new Error(`Cannot write to WordPress core directory: ${filePath}`);

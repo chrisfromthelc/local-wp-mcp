@@ -7,8 +7,8 @@ import {
   getLocalDataDir,
   getPhpBinDir,
   getMysqlBinDir,
+  getRunDataDir,
   getWebRoot,
-  resolvePath,
 } from './local-detector.js';
 
 const MAX_BUFFER = 1024 * 1024; // 1MB
@@ -69,20 +69,20 @@ export async function findWpCliPhar(): Promise<string> {
   );
 }
 
-function buildEnvironment(site: LocalSiteConfig): NodeJS.ProcessEnv {
-  const dataDir = getLocalDataDir();
-  const phpBinDir = getPhpBinDir(site);
-  const mysqlBinDir = getMysqlBinDir(site);
+async function buildEnvironment(site: LocalSiteConfig): Promise<NodeJS.ProcessEnv> {
+  const runDataDir = getRunDataDir(site);
+  const phpBinDir = await getPhpBinDir(site);
+  const mysqlBinDir = await getMysqlBinDir(site);
 
   return {
     ...process.env,
     PATH: [phpBinDir, mysqlBinDir, process.env.PATH].join(':'),
-    PHPRC: path.join(dataDir, 'run', site.id, 'conf', 'php'),
+    PHPRC: path.join(runDataDir, 'conf', 'php'),
   };
 }
 
-function resolvePhpBin(site: LocalSiteConfig): string {
-  const phpBinDir = getPhpBinDir(site);
+async function resolvePhpBin(site: LocalSiteConfig): Promise<string> {
+  const phpBinDir = await getPhpBinDir(site);
   return path.join(phpBinDir, 'php');
 }
 
@@ -139,10 +139,10 @@ export async function executeWpCli(
     return { stdout: '', stderr: check.reason!, exitCode: 1 };
   }
 
-  const phpBin = resolvePhpBin(site);
+  const phpBin = await resolvePhpBin(site);
   const wpCliPhar = await findWpCliPhar();
   const webRoot = getWebRoot(site);
-  const env = buildEnvironment(site);
+  const env = await buildEnvironment(site);
 
   const cmdParts = command.trim().split(/\s+/);
   const allArgs = [

@@ -109,7 +109,7 @@ export function registerWpCliTools(server: McpServer): void {
           name: site.name,
           domain: site.domain,
           phpVersion: site.services.php.version,
-          mysqlVersion: site.services.mysql.version,
+          mysqlVersion: (site.services.mysql || site.services.mariadb)?.version ?? 'unknown',
         },
         wordpress: {
           version: version.stdout.trim(),
@@ -157,7 +157,7 @@ export function registerWpCliTools(server: McpServer): void {
         domain: s.domain,
         path: s.path,
         php: s.services.php.version,
-        mysql: s.services.mysql.version,
+        mysql: (s.services.mysql || s.services.mariadb)?.version ?? 'unknown',
       }));
 
       return {
