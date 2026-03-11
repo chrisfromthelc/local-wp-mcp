@@ -1,6 +1,6 @@
 {
   "name": "@chrisfromthelc/local-wp-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server providing WP-CLI, MySQL, and filesystem access for Local by Flywheel WordPress sites",
   "type": "module",
   "main": "dist/index.js",
