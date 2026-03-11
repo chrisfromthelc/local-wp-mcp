@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { isCommandAllowed, normalizeCommand, truncateOutput } from '../src/services/wp-cli.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { isCommandAllowed, normalizeCommand, truncateOutput, getActionVerb, READ_ONLY_SUBCOMMANDS, getCustomSafeCommands } from '../src/services/wp-cli.js';
 
 // ── normalizeCommand ──────────────────────────────────────────────
 
@@ -247,6 +247,142 @@ describe('isCommandAllowed — edge cases', () => {
   it('distinguishes "post meta list" (safe) from "post meta update" (write)', () => {
     expect(isCommandAllowed('post meta list 42', false)).toEqual({ allowed: true });
     const result = isCommandAllowed('post meta update 42 _key value', false);
+    expect(result.allowed).toBe(false);
+  });
+});
+
+// ── getActionVerb ─────────────────────────────────────────────────
+
+describe('getActionVerb', () => {
+  it('finds a read-only verb in position 2', () => {
+    expect(getActionVerb(['wc', 'product', 'list'])).toBe('list');
+  });
+
+  it('finds a read-only verb before flags', () => {
+    expect(getActionVerb(['wc', 'product', 'list', '--field=name'])).toBe('list');
+  });
+
+  it('finds "get" in position 2', () => {
+    expect(getActionVerb(['post', 'get', '42'])).toBe('get');
+  });
+
+  it('finds "get" in position 3 (3-part command)', () => {
+    expect(getActionVerb(['post', 'meta', 'get', '42', '--format=json'])).toBe('get');
+  });
+
+  it('returns undefined for single-word commands', () => {
+    expect(getActionVerb(['help'])).toBeUndefined();
+  });
+
+  it('finds verb in position 4 (deeply nested plugin command)', () => {
+    expect(getActionVerb(['wc', 'product', 'variation', 'list', '123'])).toBe('list');
+  });
+
+  it('returns undefined when no read-only verb is present', () => {
+    expect(getActionVerb(['wc', 'product', 'create', '--name=Test'])).toBeUndefined();
+  });
+
+  it('returns undefined for unknown action verbs', () => {
+    expect(getActionVerb(['elementor', 'flush-css'])).toBeUndefined();
+  });
+
+  it('finds "search" as a read-only verb', () => {
+    expect(getActionVerb(['wc', 'shop_order', 'search', 'test'])).toBe('search');
+  });
+});
+
+// ── READ_ONLY_SUBCOMMANDS pattern ─────────────────────────────────
+
+describe('isCommandAllowed — read-only subcommand pattern (plugin commands)', () => {
+  // Plugin commands with read-only verbs should be allowed without writes
+  const pluginReadOnly = [
+    'wc product list',
+    'wc order list --status=completed',
+    'wc customer get 42',
+    'wc product variation list 123',
+    'yoast index status',
+    'acf field list',
+    'acf field get my-group',
+    'wc shop_order search test',
+    'elementor library info',
+    'jetpack status',
+  ];
+
+  for (const cmd of pluginReadOnly) {
+    it(`allows plugin command "${cmd}" without writes enabled`, () => {
+      expect(isCommandAllowed(cmd, false)).toEqual({ allowed: true });
+    });
+  }
+
+  // Plugin commands with write verbs should be blocked without writes
+  const pluginWrite = [
+    'wc product create --name=Test',
+    'wc order update 42 --status=completed',
+    'wc product delete 42',
+    'yoast index run',
+    'acf field create my-group',
+    'elementor flush-css',
+  ];
+
+  for (const cmd of pluginWrite) {
+    it(`blocks plugin command "${cmd}" when writes disabled`, () => {
+      const result = isCommandAllowed(cmd, false);
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toContain('WPCLI_ALLOW_WRITES');
+    });
+
+    it(`allows plugin command "${cmd}" when writes enabled`, () => {
+      expect(isCommandAllowed(cmd, true)).toEqual({ allowed: true });
+    });
+  }
+});
+
+// ── WPCLI_SAFE_COMMANDS env var ───────────────────────────────────
+
+describe('WPCLI_SAFE_COMMANDS custom safe commands', () => {
+  afterEach(() => {
+    delete process.env.WPCLI_SAFE_COMMANDS;
+  });
+
+  it('getCustomSafeCommands returns empty set when env not set', () => {
+    delete process.env.WPCLI_SAFE_COMMANDS;
+    expect(getCustomSafeCommands().size).toBe(0);
+  });
+
+  it('getCustomSafeCommands parses comma-separated commands', () => {
+    process.env.WPCLI_SAFE_COMMANDS = 'wc report sales,wc report customers';
+    const cmds = getCustomSafeCommands();
+    expect(cmds.has('wc report sales')).toBe(true);
+    expect(cmds.has('wc report customers')).toBe(true);
+    expect(cmds.size).toBe(2);
+  });
+
+  it('getCustomSafeCommands trims whitespace', () => {
+    process.env.WPCLI_SAFE_COMMANDS = '  wc report sales , wc report customers  ';
+    const cmds = getCustomSafeCommands();
+    expect(cmds.has('wc report sales')).toBe(true);
+    expect(cmds.has('wc report customers')).toBe(true);
+  });
+
+  it('getCustomSafeCommands ignores empty entries', () => {
+    process.env.WPCLI_SAFE_COMMANDS = 'wc report sales,,, ,wc report customers';
+    expect(getCustomSafeCommands().size).toBe(2);
+  });
+
+  it('allows a custom safe command without writes enabled', () => {
+    process.env.WPCLI_SAFE_COMMANDS = 'wc report sales';
+    expect(isCommandAllowed('wc report sales', false)).toEqual({ allowed: true });
+  });
+
+  it('allows a custom safe command with extra args', () => {
+    process.env.WPCLI_SAFE_COMMANDS = 'wc report sales';
+    // 3-part match: "wc report sales" matches even with extra args
+    expect(isCommandAllowed('wc report sales --date_min=2024-01-01', false)).toEqual({ allowed: true });
+  });
+
+  it('does not allow unrelated commands via custom safe list', () => {
+    process.env.WPCLI_SAFE_COMMANDS = 'wc report sales';
+    const result = isCommandAllowed('wc product create', false);
     expect(result.allowed).toBe(false);
   });
 });

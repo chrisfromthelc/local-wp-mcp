@@ -22,8 +22,19 @@ const WP_CLI_PHAR_PATHS = [
   path.join(os.homedir(), '.local', 'share', 'Local', 'resources', 'extraResources', 'bin', 'wp-cli', 'wp-cli.phar'),
 ];
 
+// Subcommand verbs that are inherently read-only.
+// If ANY command (core or plugin) ends with one of these as the action verb,
+// it's allowed without WPCLI_ALLOW_WRITES. This lets plugin commands like
+// `wc product list` or `yoast index --dry-run` work automatically.
+export const READ_ONLY_SUBCOMMANDS = new Set([
+  'list', 'get', 'search', 'check', 'status', 'path', 'info', 'version',
+  'is-installed', 'check-update', 'pluck', 'has',
+]);
+
 // Commands that are always safe (read-only)
 // Matched against the first 1, 2, or 3 space-separated parts of the command.
+// This set is checked BEFORE the read-only subcommand pattern, so explicit
+// entries here take priority.
 const SAFE_COMMANDS = new Set([
   // Single-word
   'help', 'server',
@@ -155,6 +166,38 @@ export function normalizeCommand(command: string): string {
   return command.trim().replace(/\s+/g, ' ');
 }
 
+// Parse WPCLI_SAFE_COMMANDS env var into a set.
+// Accepts comma-separated commands, e.g. "wc product list,wc order list"
+export function getCustomSafeCommands(): Set<string> {
+  const raw = process.env.WPCLI_SAFE_COMMANDS;
+  if (!raw) return new Set();
+  return new Set(
+    raw.split(',').map((s) => s.trim()).filter(Boolean)
+  );
+}
+
+/**
+ * Determine the "action verb" (subcommand) from a WP-CLI command.
+ * For `wc product list --field=name`, this returns `list`.
+ * For `post meta get 42 _key`, this returns `get`.
+ *
+ * WP-CLI commands follow the pattern:
+ *   <top-command> [<sub>] [<sub>] <action> [positional-args] [--flags]
+ *
+ * The action verb is always in positions 1–3 (the command prefix, not
+ * positional arguments). We scan these positions for a known read-only
+ * subcommand verb.
+ */
+export function getActionVerb(parts: string[]): string | undefined {
+  // Check positions 1–3 for the action verb (position 0 is the top-level command).
+  // Covers: `plugin list`, `post meta list`, `wc product variation list`
+  for (let i = 1; i <= 3 && i < parts.length; i++) {
+    if (parts[i].startsWith('-')) break; // flags signal end of command prefix
+    if (READ_ONLY_SUBCOMMANDS.has(parts[i])) return parts[i];
+  }
+  return undefined;
+}
+
 export function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boolean; reason?: string } {
   const normalized = normalizeCommand(command);
   const parts = normalized.split(' ');
@@ -168,6 +211,19 @@ export function isCommandAllowed(command: string, allowWrites: boolean): { allow
   const threePartCmd = parts.slice(0, 3).join(' ');
   const twoPartCmd = parts.slice(0, 2).join(' ');
   if (SAFE_COMMANDS.has(threePartCmd) || SAFE_COMMANDS.has(twoPartCmd) || SAFE_COMMANDS.has(parts[0])) {
+    return { allowed: true };
+  }
+
+  // Check custom safe commands from WPCLI_SAFE_COMMANDS env var
+  const customSafe = getCustomSafeCommands();
+  if (customSafe.has(threePartCmd) || customSafe.has(twoPartCmd) || customSafe.has(parts[0])) {
+    return { allowed: true };
+  }
+
+  // Check read-only subcommand pattern — allows plugin commands like
+  // `wc product list` or `acf field get` without needing writes enabled
+  const verb = getActionVerb(parts);
+  if (verb && READ_ONLY_SUBCOMMANDS.has(verb)) {
     return { allowed: true };
   }
 

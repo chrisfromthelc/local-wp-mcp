@@ -164,14 +164,62 @@ Everything else (`env`, server name, `type`) stays the same. Restart Claude Code
 | `SITE_ID` | Site ID from Local (takes precedence over `SITE_NAME`) | — |
 | `WPCLI_ALLOW_WRITES` | Enable write WP-CLI commands (`plugin install`, `post create`, etc.) | `"false"` |
 | `MYSQL_ALLOW_WRITES` | Enable `INSERT`/`UPDATE`/`DELETE`/`ALTER` queries | `"false"` |
+| `WPCLI_SAFE_COMMANDS` | Comma-separated list of additional read-only commands (see [Plugin CLI commands](#plugin-cli-commands)) | — |
 
 If only one site exists in Local, `SITE_NAME` and `SITE_ID` can both be omitted — the server will connect to it automatically.
+
+## Plugin CLI commands
+
+This MCP server isn't limited to core WP-CLI commands — it automatically supports commands registered by plugins (WooCommerce, ACF, Yoast, Elementor, etc.).
+
+### How it works
+
+WP-CLI commands are classified using a three-tier system:
+
+| Tier | Behavior | Examples |
+|------|----------|----------|
+| **Blocked** | Always rejected (arbitrary code execution) | `eval`, `eval-file`, `shell` |
+| **Read-only** | Always allowed | Core safe commands + any command with a read-only action verb |
+| **Write** | Requires `WPCLI_ALLOW_WRITES=true` | Everything else |
+
+**Read-only action verbs** — any command whose subcommand is one of these is automatically allowed, regardless of whether it's a core or plugin command:
+
+`list`, `get`, `search`, `check`, `status`, `path`, `info`, `version`, `is-installed`, `check-update`, `pluck`, `has`
+
+This means commands like `wc product list`, `acf field get my-group`, or `yoast index status` work out of the box — no configuration needed.
+
+Commands with write-action verbs like `wc product create`, `acf field delete`, or `yoast index run` are blocked unless `WPCLI_ALLOW_WRITES=true` is set.
+
+### Custom safe commands
+
+If a plugin has read-only commands that don't match the built-in verb patterns (e.g., `wc report sales`), you can whitelist them with the `WPCLI_SAFE_COMMANDS` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "local-wp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
+      "env": {
+        "SITE_NAME": "My Site Name",
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false",
+        "WPCLI_SAFE_COMMANDS": "wc report sales,wc report customers,my-plugin dump-config"
+      }
+    }
+  }
+}
+```
+
+Commands in `WPCLI_SAFE_COMMANDS` are always allowed without writes enabled. Use comma-separated values, matching the first 2–3 words of the command.
 
 ## Security
 
 - All commands use `spawn()` with argument arrays — no shell interpretation
 - WP-CLI `eval`, `eval-file`, and `shell` are always blocked
 - Write operations require explicit opt-in via env vars
+- Plugin commands with read-only verbs are auto-detected and allowed
 - File paths are validated with `realpath()` to prevent symlink traversal
 - WordPress core directories (`wp-admin/`, `wp-includes/`) are read-only
 - Output is truncated at 25,000 characters to preserve context windows
