@@ -151,11 +151,11 @@ async function resolvePhpBin(site: LocalSiteConfig): Promise<string> {
   return path.join(phpBinDir, 'php');
 }
 
-function normalizeCommand(command: string): string {
+export function normalizeCommand(command: string): string {
   return command.trim().replace(/\s+/g, ' ');
 }
 
-function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boolean; reason?: string } {
+export function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boolean; reason?: string } {
   const normalized = normalizeCommand(command);
   const parts = normalized.split(' ');
 
@@ -182,7 +182,7 @@ function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boo
   return { allowed: true };
 }
 
-function truncateOutput(output: string): string {
+export function truncateOutput(output: string): string {
   if (output.length <= MAX_OUTPUT_CHARS) return output;
   return output.slice(0, MAX_OUTPUT_CHARS) + `\n\n... [truncated, ${output.length - MAX_OUTPUT_CHARS} chars omitted]`;
 }

@@ -24,7 +24,7 @@ export function registerWpCliTools(server: McpServer): void {
       format: z
         .enum(['table', 'json', 'csv', 'yaml', 'count'])
         .optional()
-        .describe('Output format. Defaults to json for structured data.'),
+        .describe('Output format (e.g., "json" for structured data). Only applies to commands that support it (list, get, search). Do not use with write commands like create, update, delete.'),
       site: z
         .string()
         .optional()
@@ -41,7 +41,7 @@ export function registerWpCliTools(server: McpServer): void {
       const site = await selectSite(siteIdentifier);
       const result = await executeWpCli(command, site, {
         args,
-        format: format || 'json',
+        format,
       });
 
       if (result.exitCode !== 0) {

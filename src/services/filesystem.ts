@@ -43,7 +43,7 @@ async function validatePath(filePath: string, site: LocalSiteConfig): Promise<st
 /**
  * Check if a path is in a read-only zone (wp-admin, wp-includes).
  */
-function isReadOnlyPath(filePath: string, webRoot: string): boolean {
+export function isReadOnlyPath(filePath: string, webRoot: string): boolean {
   const relative = path.relative(webRoot, filePath);
   return relative.startsWith('wp-admin') || relative.startsWith('wp-includes');
 }

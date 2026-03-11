@@ -6,8 +6,26 @@ import { getMysqlSocketPath } from './local-detector.js';
 let pool: Pool | null = null;
 let currentSiteId: string | null = null;
 
-const READ_ONLY_PATTERN = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN|WITH)\s/i;
-const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE|DROP|TRUNCATE|RENAME|OPTIMIZE|REPAIR)\s/i;
+export const READ_ONLY_PATTERN = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN|WITH)\s/i;
+export const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE|DROP|TRUNCATE|RENAME|OPTIMIZE|REPAIR)\s/i;
+
+export function classifyQuery(query: string, allowWrites: boolean): { allowed: boolean; reason?: string } {
+  if (WRITE_PATTERN.test(query) && !allowWrites) {
+    return {
+      allowed: false,
+      reason: 'Write queries are disabled. Set MYSQL_ALLOW_WRITES=true to enable INSERT/UPDATE/DELETE operations.',
+    };
+  }
+
+  if (!READ_ONLY_PATTERN.test(query) && !WRITE_PATTERN.test(query)) {
+    return {
+      allowed: false,
+      reason: `Unrecognized query type. Supported read queries: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH (CTEs). Write queries (when enabled): INSERT, UPDATE, DELETE, REPLACE, ALTER, CREATE, DROP, TRUNCATE, RENAME, OPTIMIZE, REPAIR.`,
+    };
+  }
+
+  return { allowed: true };
+}
 
 export function createPool(site: LocalSiteConfig): Pool {
   if (pool && currentSiteId === site.id) {
@@ -42,16 +60,9 @@ export async function executeQuery(
 ): Promise<{ rows: unknown[]; fields: string[]; rowCount: number }> {
   const allowWrites = process.env.MYSQL_ALLOW_WRITES === 'true';
 
-  if (WRITE_PATTERN.test(query) && !allowWrites) {
-    throw new Error(
-      'Write queries are disabled. Set MYSQL_ALLOW_WRITES=true to enable INSERT/UPDATE/DELETE operations.'
-    );
-  }
-
-  if (!READ_ONLY_PATTERN.test(query) && !WRITE_PATTERN.test(query)) {
-    throw new Error(
-      `Unrecognized query type. Supported read queries: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH (CTEs). Write queries (when enabled): INSERT, UPDATE, DELETE, REPLACE, ALTER, CREATE, DROP, TRUNCATE, RENAME, OPTIMIZE, REPAIR.`
-    );
+  const check = classifyQuery(query, allowWrites);
+  if (!check.allowed) {
+    throw new Error(check.reason);
   }
 
   const p = createPool(site);
