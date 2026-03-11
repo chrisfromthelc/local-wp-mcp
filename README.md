@@ -29,11 +29,9 @@ Unlike REST API-based WordPress MCP servers, this connects directly through Loca
 
 ## Setup
 
-There are two ways to run this MCP server: **from npm** (recommended for general use) or **from a local clone** (for development or customization). Both produce the same `.mcp.json` configuration file that Claude Code reads on startup.
+There are two ways to run this MCP server: **from npm** (recommended for general use) or **from a local clone** (for development or customization).
 
-> **Where does `.mcp.json` go?** Place it in the root of the project you open in Claude Code — typically your Local site's `app/public/` folder (e.g., `~/Local Sites/mysite/app/public/.mcp.json`).
-
-> **Important**: All `env` values in `.mcp.json` must be strings (e.g., `"true"` not `true`).
+> **Important**: All `env` values must be strings (e.g., `"true"` not `true`).
 
 ---
 
@@ -41,7 +39,7 @@ There are two ways to run this MCP server: **from npm** (recommended for general
 
 This is the simplest approach. npm downloads and caches the package automatically — no cloning or building required.
 
-#### Automatic setup
+#### Automatic setup (Claude Code)
 
 From your Local site's project directory:
 
@@ -50,16 +48,16 @@ cd ~/Local\ Sites/mysite/app/public
 npx -y @chrisfromthelc/local-wp-mcp --setup
 ```
 
-This will:
-- Auto-detect the Local site from your current directory
-- Create a `.mcp.json` (or merge into an existing one)
-- Pre-fill `SITE_NAME` and set write permissions to `false`
-
-Restart Claude Code to connect.
+This will auto-detect the Local site, create a `.mcp.json` (or merge into an existing one), and pre-fill `SITE_NAME` with write permissions set to `false`. Restart Claude Code to connect.
 
 #### Manual setup
 
-If you prefer to create the config yourself, add a `.mcp.json` to your project root:
+Choose your agent below. Each example uses `npx` to run the server — replace `"My Site Name"` with the name shown in Local.
+
+<details>
+<summary><strong>Claude Code</strong></summary>
+
+Add a `.mcp.json` to your project root (e.g., `~/Local Sites/mysite/app/public/.mcp.json`):
 
 ```json
 {
@@ -79,13 +77,126 @@ If you prefer to create the config yourself, add a `.mcp.json` to your project r
 }
 ```
 
-Or add via the Claude Code CLI:
+Or add via the CLI:
 
 ```bash
 claude mcp add -s project local-wp -- npx -y @chrisfromthelc/local-wp-mcp
 ```
 
 Then set environment variables with `claude mcp add-json` or by editing `.mcp.json` directly.
+
+</details>
+
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Edit the config file:
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "local-wp": {
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
+      "env": {
+        "SITE_NAME": "My Site Name",
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop to connect.
+
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Add a `.cursor/mcp.json` to your project root, or edit `~/.cursor/mcp.json` for global config:
+
+```json
+{
+  "mcpServers": {
+    "local-wp": {
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
+      "env": {
+        "SITE_NAME": "My Site Name",
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
+      }
+    }
+  }
+}
+```
+
+Or add from Cursor Settings > Tools & MCP > New MCP Server.
+
+</details>
+
+<details>
+<summary><strong>VS Code (GitHub Copilot)</strong></summary>
+
+Add a `.vscode/mcp.json` to your workspace root:
+
+```json
+{
+  "servers": {
+    "local-wp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
+      "env": {
+        "SITE_NAME": "My Site Name",
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
+      }
+    }
+  }
+}
+```
+
+> **Note**: VS Code uses `"servers"` (not `"mcpServers"`) and requires `"type": "stdio"`.
+
+Or use the Command Palette: **MCP: Add Server**.
+
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Edit the config file:
+- macOS: `~/.codeium/windsurf/mcp_config.json`
+- Windows: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`
+
+```json
+{
+  "mcpServers": {
+    "local-wp": {
+      "command": "npx",
+      "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
+      "env": {
+        "SITE_NAME": "My Site Name",
+        "WPCLI_ALLOW_WRITES": "false",
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
+      }
+    }
+  }
+}
+```
+
+Or use the Command Palette: **MCP: Add Server**.
+
+</details>
 
 ---
 
@@ -102,33 +213,20 @@ npm install
 npm run build
 ```
 
-#### 2. Configure `.mcp.json`
+#### 2. Configure your agent
 
-Point the config at your local `dist/index.js` instead of using npx:
+Point your agent's config at the local `dist/index.js` instead of using npx. Use the same config format shown in the [manual setup](#manual-setup) section for your agent, but replace `command` and `args`:
 
 ```json
-{
-  "mcpServers": {
-    "local-wp": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/absolute/path/to/local-wp-mcp/dist/index.js"],
-      "env": {
-        "SITE_NAME": "My Site Name",
-        "WPCLI_ALLOW_WRITES": "false",
-        "MYSQL_ALLOW_WRITES": "false",
-        "FS_ALLOW_WRITES": "false"
-      }
-    }
-  }
-}
+"command": "node",
+"args": ["/absolute/path/to/local-wp-mcp/dist/index.js"]
 ```
 
-> **Note**: The `args` path must be absolute (e.g., `/Users/you/Projects/local-wp-mcp/dist/index.js`). Relative paths won't resolve correctly when Claude Code spawns the process.
+> **Note**: The path must be absolute (e.g., `/Users/you/Projects/local-wp-mcp/dist/index.js`). Relative paths won't resolve correctly when the agent spawns the process.
 
 #### 3. Rebuild after changes
 
-After editing source files, rebuild before restarting Claude Code:
+After editing source files, rebuild before restarting your agent:
 
 ```bash
 npm run build
@@ -136,25 +234,28 @@ npm run build
 
 You can also use `npm run dev` to watch for changes and rebuild automatically during development.
 
-#### Running tests
+#### Development commands
 
 ```bash
-npm test            # single run
-npm run test:watch  # watch mode
+npm run lint            # ESLint
+npm run build           # TypeScript compile
+npm test                # unit tests (single run)
+npm run test:watch      # unit tests (watch mode)
+npm run test:coverage   # unit tests with coverage report
 ```
 
 ---
 
 ### Switching between npm and local
 
-To switch from npm to local (or vice versa), update the `command` and `args` in your `.mcp.json`:
+To switch from npm to local (or vice versa), update `command` and `args` in your agent's config:
 
 | Method | `command` | `args` |
 |--------|-----------|--------|
 | npm (npx) | `"npx"` | `["-y", "@chrisfromthelc/local-wp-mcp"]` |
 | Local clone | `"node"` | `["/absolute/path/to/dist/index.js"]` |
 
-Everything else (`env`, server name, `type`) stays the same. Restart Claude Code after switching.
+Everything else (`env`, server name) stays the same. Restart your agent after switching.
 
 ---
 
@@ -220,11 +321,16 @@ Commands in `WPCLI_SAFE_COMMANDS` are always allowed without writes enabled. Use
 ## Security
 
 - All commands use `spawn()` with argument arrays — no shell interpretation
+- Shell metacharacters rejected in both commands and arguments as defense-in-depth
 - WP-CLI `eval`, `eval-file`, and `shell` are always blocked
+- Dangerous flags (`--exec`, `--require`, `--ssh`, etc.) are blocked in all commands
 - Write operations require explicit opt-in via env vars
 - Plugin commands with read-only verbs are auto-detected and allowed
 - File paths are validated with `realpath()` to prevent symlink traversal
+- File reads and writes use open handles to mitigate TOCTOU race conditions
 - WordPress core directories (`wp-admin/`, `wp-includes/`) are read-only
+- Child processes inherit only necessary environment variables
+- Directory searches are capped at 10,000 files to prevent resource exhaustion
 - Output is truncated at 25,000 characters to preserve context windows
 
 ## Requirements
