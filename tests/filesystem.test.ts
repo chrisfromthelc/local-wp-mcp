@@ -51,13 +51,20 @@ describe('isReadOnlyPath', () => {
 
   // Edge cases: files that start with "wp-admin" or "wp-includes" but aren't in those dirs
   it('allows a file named wp-admin-helper.php in webroot', () => {
-    // path.relative would be "wp-admin-helper.php" which startsWith("wp-admin") is true!
-    // This is a known limitation worth documenting.
-    // For now, this test documents the current behavior.
     const filePath = path.join(webRoot, 'wp-admin-helper.php');
-    const result = isReadOnlyPath(filePath, webRoot);
-    // Current implementation uses startsWith, so this would incorrectly match.
-    // Marking as expected current behavior — flagged for potential fix.
-    expect(result).toBe(true); // BUG: should be false
+    expect(isReadOnlyPath(filePath, webRoot)).toBe(false);
+  });
+
+  it('allows a file named wp-includes-extra.php in webroot', () => {
+    const filePath = path.join(webRoot, 'wp-includes-extra.php');
+    expect(isReadOnlyPath(filePath, webRoot)).toBe(false);
+  });
+
+  it('marks the wp-admin directory itself as read-only', () => {
+    expect(isReadOnlyPath(path.join(webRoot, 'wp-admin'), webRoot)).toBe(true);
+  });
+
+  it('marks the wp-includes directory itself as read-only', () => {
+    expect(isReadOnlyPath(path.join(webRoot, 'wp-includes'), webRoot)).toBe(true);
   });
 });

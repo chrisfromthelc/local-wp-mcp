@@ -45,7 +45,10 @@ async function validatePath(filePath: string, site: LocalSiteConfig): Promise<st
  */
 export function isReadOnlyPath(filePath: string, webRoot: string): boolean {
   const relative = path.relative(webRoot, filePath);
-  return relative.startsWith('wp-admin') || relative.startsWith('wp-includes');
+  return (
+    relative === 'wp-admin' || relative.startsWith('wp-admin' + path.sep) ||
+    relative === 'wp-includes' || relative.startsWith('wp-includes' + path.sep)
+  );
 }
 
 export async function readFile(
