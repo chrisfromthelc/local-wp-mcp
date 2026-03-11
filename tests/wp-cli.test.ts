@@ -445,25 +445,19 @@ describe('validateArgs — blocked flags', () => {
     expect(validateArgs([])).toEqual({ valid: true });
   });
 
-  it('blocks shell metacharacters in args (semicolon)', () => {
-    const result = validateArgs(['; rm -rf /']);
-    expect(result.valid).toBe(false);
-    expect(result.reason).toContain('metacharacter');
+  it('allows HTML content in arg values (spawn is safe)', () => {
+    const result = validateArgs(['--post_content=<h2>Hello</h2><p>World</p>']);
+    expect(result.valid).toBe(true);
   });
 
-  it('blocks shell metacharacters in args (pipe)', () => {
-    const result = validateArgs(['| cat /etc/passwd']);
-    expect(result.valid).toBe(false);
+  it('allows JSON content in arg values', () => {
+    const result = validateArgs(['--meta_input={"key":"value"}']);
+    expect(result.valid).toBe(true);
   });
 
-  it('blocks shell metacharacters in args (backtick)', () => {
-    const result = validateArgs(['`whoami`']);
-    expect(result.valid).toBe(false);
-  });
-
-  it('blocks shell metacharacters in args ($())', () => {
-    const result = validateArgs(['$(id)']);
-    expect(result.valid).toBe(false);
+  it('allows shell-like characters in arg values', () => {
+    const result = validateArgs(['--post_title=Foo & Bar | Baz']);
+    expect(result.valid).toBe(true);
   });
 });
 

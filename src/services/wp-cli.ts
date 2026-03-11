@@ -224,14 +224,6 @@ export function getActionVerb(parts: string[]): string | undefined {
  */
 export function validateArgs(args: string[]): { valid: boolean; reason?: string } {
   for (const arg of args) {
-    // Defense-in-depth: reject shell metacharacters in args
-    if (SHELL_META_PATTERN.test(arg)) {
-      return {
-        valid: false,
-        reason: `Argument contains shell metacharacters which are not allowed.`,
-      };
-    }
-
     // Match both --flag=value and --flag value forms
     const flagName = arg.split('=')[0].toLowerCase();
     if (BLOCKED_FLAGS.has(flagName)) {
