@@ -29,24 +29,37 @@ Unlike REST API-based WordPress MCP servers, this connects directly through Loca
 
 ## Setup
 
-### Quick setup (recommended)
+There are two ways to run this MCP server: **from npm** (recommended for general use) or **from a local clone** (for development or customization). Both produce the same `.mcp.json` configuration file that Claude Code reads on startup.
 
-Run this from your Local site's project directory (e.g., `~/Local Sites/mysite/app/public/`):
+> **Where does `.mcp.json` go?** Place it in the root of the project you open in Claude Code — typically your Local site's `app/public/` folder (e.g., `~/Local Sites/mysite/app/public/.mcp.json`).
+
+> **Important**: All `env` values in `.mcp.json` must be strings (e.g., `"true"` not `true`).
+
+---
+
+### Option A: Install from npm (recommended)
+
+This is the simplest approach. npm downloads and caches the package automatically — no cloning or building required.
+
+#### Automatic setup
+
+From your Local site's project directory:
 
 ```bash
+cd ~/Local\ Sites/mysite/app/public
 npx -y @chrisfromthelc/local-wp-mcp --setup
 ```
 
 This will:
 - Auto-detect the Local site from your current directory
-- Create or merge into an existing `.mcp.json`
+- Create a `.mcp.json` (or merge into an existing one)
 - Pre-fill `SITE_NAME` and set write permissions to `false`
 
-Then restart Claude Code to connect.
+Restart Claude Code to connect.
 
-### Manual setup
+#### Manual setup
 
-Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/public/` folder):
+If you prefer to create the config yourself, add a `.mcp.json` to your project root:
 
 ```json
 {
@@ -56,7 +69,7 @@ Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/p
       "command": "npx",
       "args": ["-y", "@chrisfromthelc/local-wp-mcp"],
       "env": {
-        "SITE_NAME": "your-site-name",
+        "SITE_NAME": "My Site Name",
         "WPCLI_ALLOW_WRITES": "false",
         "MYSQL_ALLOW_WRITES": "false"
       }
@@ -65,23 +78,32 @@ Add a `.mcp.json` to your WordPress project root (e.g., your Local site's `app/p
 }
 ```
 
-> **Important**: All `env` values must be strings (e.g., `"true"` not `true`).
-
-Or add via CLI:
+Or add via the Claude Code CLI:
 
 ```bash
 claude mcp add -s project local-wp -- npx -y @chrisfromthelc/local-wp-mcp
 ```
 
-### From source (development)
+Then set environment variables with `claude mcp add-json` or by editing `.mcp.json` directly.
+
+---
+
+### Option B: Install from source (development)
+
+Use this if you want to modify the server, run tests, or contribute changes. You clone the repo, build it once, and point `.mcp.json` at your local build output.
+
+#### 1. Clone and build
 
 ```bash
 git clone https://github.com/chrisfromthelc/local-wp-mcp.git
 cd local-wp-mcp
 npm install
+npm run build
 ```
 
-Then use a local path in `.mcp.json` instead:
+#### 2. Configure `.mcp.json`
+
+Point the config at your local `dist/index.js` instead of using npx:
 
 ```json
 {
@@ -89,9 +111,9 @@ Then use a local path in `.mcp.json` instead:
     "local-wp": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/local-wp-mcp/dist/index.js"],
+      "args": ["/absolute/path/to/local-wp-mcp/dist/index.js"],
       "env": {
-        "SITE_NAME": "your-site-name",
+        "SITE_NAME": "My Site Name",
         "WPCLI_ALLOW_WRITES": "false",
         "MYSQL_ALLOW_WRITES": "false"
       }
@@ -100,16 +122,50 @@ Then use a local path in `.mcp.json` instead:
 }
 ```
 
-### Environment Variables
+> **Note**: The `args` path must be absolute (e.g., `/Users/you/Projects/local-wp-mcp/dist/index.js`). Relative paths won't resolve correctly when Claude Code spawns the process.
 
-| Variable | Description |
-|----------|-------------|
-| `SITE_NAME` | Site name to connect to (from Local) |
-| `SITE_ID` | Site ID (takes precedence over SITE_NAME) |
-| `WPCLI_ALLOW_WRITES` | Set to `true` to enable write WP-CLI commands |
-| `MYSQL_ALLOW_WRITES` | Set to `true` to enable INSERT/UPDATE/DELETE queries |
+#### 3. Rebuild after changes
 
-If only one site exists in Local, it's selected automatically.
+After editing source files, rebuild before restarting Claude Code:
+
+```bash
+npm run build
+```
+
+You can also use `npm run dev` to watch for changes and rebuild automatically during development.
+
+#### Running tests
+
+```bash
+npm test            # single run
+npm run test:watch  # watch mode
+```
+
+---
+
+### Switching between npm and local
+
+To switch from npm to local (or vice versa), update the `command` and `args` in your `.mcp.json`:
+
+| Method | `command` | `args` |
+|--------|-----------|--------|
+| npm (npx) | `"npx"` | `["-y", "@chrisfromthelc/local-wp-mcp"]` |
+| Local clone | `"node"` | `["/absolute/path/to/dist/index.js"]` |
+
+Everything else (`env`, server name, `type`) stays the same. Restart Claude Code after switching.
+
+---
+
+### Environment variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SITE_NAME` | Site name as shown in Local (e.g., `"My Site"`) | Auto-detected if only one site exists |
+| `SITE_ID` | Site ID from Local (takes precedence over `SITE_NAME`) | — |
+| `WPCLI_ALLOW_WRITES` | Enable write WP-CLI commands (`plugin install`, `post create`, etc.) | `"false"` |
+| `MYSQL_ALLOW_WRITES` | Enable `INSERT`/`UPDATE`/`DELETE`/`ALTER` queries | `"false"` |
+
+If only one site exists in Local, `SITE_NAME` and `SITE_ID` can both be omitted — the server will connect to it automatically.
 
 ## Security
 
