@@ -49,6 +49,7 @@ export function registerFsTools(server: McpServer): void {
     title: 'Write Site File',
     description:
       'Write content to a file in the Local by Flywheel site directory. ' +
+      'Requires FS_ALLOW_WRITES=true. ' +
       'Cannot write to wp-admin/ or wp-includes/ (WordPress core). ' +
       'Path is relative to the site root.',
     inputSchema: {

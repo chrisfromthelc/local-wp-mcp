@@ -4,7 +4,6 @@ import os from 'os';
 import fs from 'fs/promises';
 import type { LocalSiteConfig, WpCliResult } from '../types.js';
 import {
-  getLocalDataDir,
   getPhpBinDir,
   getMysqlBinDir,
   getRunDataDir,
@@ -14,6 +13,15 @@ import {
 const MAX_BUFFER = 1024 * 1024; // 1MB
 const DEFAULT_TIMEOUT = 30_000; // 30 seconds
 const MAX_OUTPUT_CHARS = 25_000;
+
+// Flags that must never appear in the user-supplied `args` array.
+// These can achieve arbitrary code execution or bypass the command allowlist.
+const BLOCKED_FLAGS = new Set([
+  '--require',
+  '--exec',
+  '--skip-plugins',
+  '--skip-themes',
+]);
 
 // WP-CLI phar location inside Local.app bundle
 const WP_CLI_PHAR_PATHS = [
@@ -37,7 +45,7 @@ export const READ_ONLY_SUBCOMMANDS = new Set([
 // entries here take priority.
 const SAFE_COMMANDS = new Set([
   // Single-word
-  'help', 'server',
+  'help',
 
   // Core
   'core version', 'core is-installed', 'core check-update',
@@ -151,9 +159,11 @@ async function buildEnvironment(site: LocalSiteConfig): Promise<NodeJS.ProcessEn
   const mysqlBinDir = await getMysqlBinDir(site);
 
   return {
-    ...process.env,
-    PATH: [phpBinDir, mysqlBinDir, process.env.PATH].join(':'),
+    PATH: [phpBinDir, mysqlBinDir, process.env.PATH].join(path.delimiter),
     PHPRC: path.join(runDataDir, 'conf', 'php'),
+    HOME: process.env.HOME,
+    TMPDIR: process.env.TMPDIR,
+    LANG: process.env.LANG,
   };
 }
 
@@ -168,12 +178,22 @@ export function normalizeCommand(command: string): string {
 
 // Parse WPCLI_SAFE_COMMANDS env var into a set.
 // Accepts comma-separated commands, e.g. "wc product list,wc order list"
+// Cached after first call since env vars don't change at runtime.
+let _customSafeCache: Set<string> | null = null;
+let _customSafeCacheKey: string | undefined;
+
 export function getCustomSafeCommands(): Set<string> {
   const raw = process.env.WPCLI_SAFE_COMMANDS;
-  if (!raw) return new Set();
-  return new Set(
+  if (raw === _customSafeCacheKey && _customSafeCache) return _customSafeCache;
+  _customSafeCacheKey = raw;
+  if (!raw) {
+    _customSafeCache = new Set();
+    return _customSafeCache;
+  }
+  _customSafeCache = new Set(
     raw.split(',').map((s) => s.trim()).filter(Boolean)
   );
+  return _customSafeCache;
 }
 
 /**
@@ -198,8 +218,45 @@ export function getActionVerb(parts: string[]): string | undefined {
   return undefined;
 }
 
+/**
+ * Validate that user-supplied args don't contain blocked flags.
+ * Flags like --require can load arbitrary PHP files, bypassing the allowlist.
+ */
+export function validateArgs(args: string[]): { valid: boolean; reason?: string } {
+  for (const arg of args) {
+    // Defense-in-depth: reject shell metacharacters in args
+    if (SHELL_META_PATTERN.test(arg)) {
+      return {
+        valid: false,
+        reason: `Argument contains shell metacharacters which are not allowed.`,
+      };
+    }
+
+    // Match both --flag=value and --flag value forms
+    const flagName = arg.split('=')[0].toLowerCase();
+    if (BLOCKED_FLAGS.has(flagName)) {
+      return {
+        valid: false,
+        reason: `Flag "${flagName}" is blocked for security (can bypass command restrictions).`,
+      };
+    }
+  }
+  return { valid: true };
+}
+
+// Shell metacharacters that must never appear in WP-CLI commands.
+// spawn() doesn't use a shell, but this is defense-in-depth in case
+// the execution path ever changes or the command leaks to a shell context.
+const SHELL_META_PATTERN = /[;&|`$(){}[\]<>!\\]/;
+
 export function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boolean; reason?: string } {
   const normalized = normalizeCommand(command);
+
+  // Defense-in-depth: reject shell metacharacters
+  if (SHELL_META_PATTERN.test(normalized)) {
+    return { allowed: false, reason: 'Command contains shell metacharacters which are not allowed.' };
+  }
+
   const parts = normalized.split(' ');
 
   // Check blocked commands (first part only)
@@ -258,6 +315,14 @@ export async function executeWpCli(
     return { stdout: '', stderr: check.reason!, exitCode: 1 };
   }
 
+  // Validate user-supplied args for blocked flags
+  if (options?.args) {
+    const argsCheck = validateArgs(options.args);
+    if (!argsCheck.valid) {
+      return { stdout: '', stderr: argsCheck.reason!, exitCode: 1 };
+    }
+  }
+
   const phpBin = await resolvePhpBin(site);
   const wpCliPhar = await findWpCliPhar();
   const webRoot = getWebRoot(site);
@@ -278,13 +343,13 @@ export async function executeWpCli(
 
   const timeout = options?.timeout || DEFAULT_TIMEOUT;
 
-  return new Promise<WpCliResult>((resolve, reject) => {
+  return new Promise<WpCliResult>((resolve) => {
     const startTime = Date.now();
     const child = spawn(phpBin, allArgs, {
       cwd: webRoot,
       env,
       timeout,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     let stdout = '';

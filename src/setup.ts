@@ -49,6 +49,7 @@ export async function runSetup(): Promise<void> {
       ...(detected ? { SITE_NAME: detected.name } : {}),
       WPCLI_ALLOW_WRITES: 'false',
       MYSQL_ALLOW_WRITES: 'false',
+      FS_ALLOW_WRITES: 'false',
     },
   };
 

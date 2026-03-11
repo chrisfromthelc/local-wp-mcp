@@ -213,4 +213,44 @@ describe('classifyQuery', () => {
     const result = classifyQuery('hello world', false);
     expect(result.allowed).toBe(false);
   });
+
+  // Dangerous clause blocking
+  it('blocks SELECT INTO OUTFILE', () => {
+    const result = classifyQuery("SELECT * FROM wp_users INTO OUTFILE '/tmp/dump.csv'", false);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('INTO OUTFILE');
+  });
+
+  it('blocks SELECT INTO DUMPFILE', () => {
+    const result = classifyQuery("SELECT '<?php system($_GET[\"cmd\"]); ?>' INTO DUMPFILE '/var/www/shell.php'", false);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('INTO DUMPFILE');
+  });
+
+  it('blocks LOAD_FILE()', () => {
+    const result = classifyQuery("SELECT LOAD_FILE('/etc/passwd')", false);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('LOAD_FILE');
+  });
+
+  it('blocks INTO OUTFILE even when writes enabled', () => {
+    const result = classifyQuery("SELECT * FROM wp_options INTO OUTFILE '/tmp/data.csv'", true);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('blocked clause');
+  });
+
+  it('blocks LOAD_FILE case-insensitively', () => {
+    const result = classifyQuery("SELECT load_file('/etc/shadow')", false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('blocks INTO OUTFILE in CTE queries', () => {
+    const result = classifyQuery("WITH cte AS (SELECT 1) SELECT * FROM cte INTO OUTFILE '/tmp/out'", false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('allows normal SELECT with INTO keyword in string literal context', () => {
+    // This is a normal query that contains "into" but not as INTO OUTFILE/DUMPFILE
+    expect(classifyQuery("SELECT * FROM wp_posts WHERE post_content LIKE '%into%'", false)).toEqual({ allowed: true });
+  });
 });

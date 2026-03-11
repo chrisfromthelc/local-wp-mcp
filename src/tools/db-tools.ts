@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RowDataPacket } from 'mysql2/promise';
 import { selectSite } from '../services/local-detector.js';
 import { executeQuery, getSchema } from '../services/mysql-client.js';
+import { executeWpCli } from '../services/wp-cli.js';
 
 export function registerDbTools(server: McpServer): void {
   server.registerTool('mysql_query', {
@@ -111,9 +113,21 @@ export function registerDbTools(server: McpServer): void {
   }, async ({ site: siteIdentifier }) => {
     try {
       const site = await selectSite(siteIdentifier);
+
+      // Detect table prefix via WP-CLI (falls back to wp_)
+      let prefix = 'wp_';
+      try {
+        const prefixResult = await executeWpCli('db prefix', site);
+        if (prefixResult.exitCode === 0 && prefixResult.stdout.trim()) {
+          prefix = prefixResult.stdout.trim();
+        }
+      } catch {
+        // Fall back to wp_ if WP-CLI is unavailable
+      }
+
       const result = await executeQuery(
         site,
-        "SELECT option_value FROM wp_options WHERE option_name = 'active_plugins'"
+        `SELECT option_value FROM ${prefix}options WHERE option_name = 'active_plugins'`
       );
 
       if (result.rows.length === 0) {
@@ -122,7 +136,7 @@ export function registerDbTools(server: McpServer): void {
         };
       }
 
-      const serialized = (result.rows[0] as any).option_value;
+      const serialized = (result.rows[0] as RowDataPacket).option_value as string;
       return {
         content: [
           { type: 'text' as const, text: `Active plugins (serialized PHP):\n${serialized}` },

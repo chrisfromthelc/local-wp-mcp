@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { selectSite } from '../services/local-detector.js';
+import { selectSite, listSites } from '../services/local-detector.js';
 import { executeWpCli } from '../services/wp-cli.js';
 
 export function registerWpCliTools(server: McpServer): void {
@@ -148,7 +148,6 @@ export function registerWpCliTools(server: McpServer): void {
     },
   }, async () => {
     try {
-      const { listSites } = await import('../services/local-detector.js');
       const sites = await listSites();
 
       const summary = sites.map((s) => ({

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { isCommandAllowed, normalizeCommand, truncateOutput, getActionVerb, READ_ONLY_SUBCOMMANDS, getCustomSafeCommands } from '../src/services/wp-cli.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { isCommandAllowed, normalizeCommand, truncateOutput, getActionVerb, getCustomSafeCommands, validateArgs } from '../src/services/wp-cli.js';
 
 // ── normalizeCommand ──────────────────────────────────────────────
 
@@ -101,8 +101,9 @@ describe('isCommandAllowed — safe (read-only) commands', () => {
     expect(isCommandAllowed('help', false)).toEqual({ allowed: true });
   });
 
-  it('allows "server"', () => {
-    expect(isCommandAllowed('server', false)).toEqual({ allowed: true });
+  it('blocks "server" (starts HTTP server, not read-only)', () => {
+    const result = isCommandAllowed('server', false);
+    expect(result.allowed).toBe(false);
   });
 
   // Safe commands with extra args should still match
@@ -384,5 +385,118 @@ describe('WPCLI_SAFE_COMMANDS custom safe commands', () => {
     process.env.WPCLI_SAFE_COMMANDS = 'wc report sales';
     const result = isCommandAllowed('wc product create', false);
     expect(result.allowed).toBe(false);
+  });
+});
+
+// ── validateArgs ─────────────────────────────────────────────────
+
+describe('validateArgs — blocked flags', () => {
+  it('allows normal args', () => {
+    expect(validateArgs(['--status=active', '--format=json'])).toEqual({ valid: true });
+  });
+
+  it('allows positional args', () => {
+    expect(validateArgs(['42', 'my-value', '--fields=ID,title'])).toEqual({ valid: true });
+  });
+
+  it('blocks --require flag (=value form)', () => {
+    const result = validateArgs(['--require=/tmp/evil.php']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--require');
+    expect(result.reason).toContain('blocked');
+  });
+
+  it('blocks --require flag (space-separated, flag only)', () => {
+    const result = validateArgs(['--require', '/tmp/evil.php']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--require');
+  });
+
+  it('blocks --exec flag', () => {
+    const result = validateArgs(['--exec=echo hello']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--exec');
+  });
+
+  it('blocks --skip-plugins flag', () => {
+    const result = validateArgs(['--skip-plugins']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--skip-plugins');
+  });
+
+  it('blocks --skip-themes flag', () => {
+    const result = validateArgs(['--skip-themes']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--skip-themes');
+  });
+
+  it('blocks flags case-insensitively', () => {
+    const result = validateArgs(['--REQUIRE=/tmp/evil.php']);
+    expect(result.valid).toBe(false);
+  });
+
+  it('detects blocked flag among safe flags', () => {
+    const result = validateArgs(['--format=json', '--require=/tmp/evil.php', '--fields=ID']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('--require');
+  });
+
+  it('allows empty args array', () => {
+    expect(validateArgs([])).toEqual({ valid: true });
+  });
+
+  it('blocks shell metacharacters in args (semicolon)', () => {
+    const result = validateArgs(['; rm -rf /']);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain('metacharacter');
+  });
+
+  it('blocks shell metacharacters in args (pipe)', () => {
+    const result = validateArgs(['| cat /etc/passwd']);
+    expect(result.valid).toBe(false);
+  });
+
+  it('blocks shell metacharacters in args (backtick)', () => {
+    const result = validateArgs(['`whoami`']);
+    expect(result.valid).toBe(false);
+  });
+
+  it('blocks shell metacharacters in args ($())', () => {
+    const result = validateArgs(['$(id)']);
+    expect(result.valid).toBe(false);
+  });
+});
+
+// ── isCommandAllowed — shell metacharacter defense ───────────────
+
+describe('isCommandAllowed — shell metacharacter defense', () => {
+  it('blocks commands with semicolons', () => {
+    const result = isCommandAllowed('plugin list; rm -rf /', false);
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain('metacharacter');
+  });
+
+  it('blocks commands with pipes', () => {
+    const result = isCommandAllowed('plugin list | cat /etc/passwd', false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('blocks commands with backticks', () => {
+    const result = isCommandAllowed('option get `whoami`', false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('blocks commands with $() substitution', () => {
+    const result = isCommandAllowed('option get $(id)', false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('blocks commands with && chaining', () => {
+    const result = isCommandAllowed('plugin list && rm -rf /', false);
+    expect(result.allowed).toBe(false);
+  });
+
+  it('allows normal commands without metacharacters', () => {
+    expect(isCommandAllowed('plugin list --format=json', false)).toEqual({ allowed: true });
   });
 });

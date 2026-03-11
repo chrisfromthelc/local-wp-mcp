@@ -29,11 +29,37 @@ export function getSitesJsonPath(): string {
   return p;
 }
 
+function isValidSiteEntry(entry: unknown): entry is LocalSiteConfig {
+  if (!entry || typeof entry !== 'object') return false;
+  const e = entry as Record<string, unknown>;
+  return (
+    typeof e.id === 'string' &&
+    typeof e.name === 'string' &&
+    typeof e.path === 'string' &&
+    typeof e.services === 'object' && e.services !== null
+  );
+}
+
 export async function loadSitesJson(): Promise<SitesJson> {
   const sitesPath = getSitesJsonPath();
   try {
     const raw = await fs.readFile(sitesPath, 'utf-8');
-    return JSON.parse(raw) as SitesJson;
+    const parsed = JSON.parse(raw);
+
+    // Validate structure: must be an object with site entries
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('sites.json is not a valid object');
+    }
+
+    // Filter out invalid entries
+    const result: SitesJson = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (isValidSiteEntry(value)) {
+        result[key] = value;
+      }
+    }
+
+    return result;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new Error(

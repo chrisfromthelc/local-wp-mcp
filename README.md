@@ -71,7 +71,8 @@ If you prefer to create the config yourself, add a `.mcp.json` to your project r
       "env": {
         "SITE_NAME": "My Site Name",
         "WPCLI_ALLOW_WRITES": "false",
-        "MYSQL_ALLOW_WRITES": "false"
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
       }
     }
   }
@@ -115,7 +116,8 @@ Point the config at your local `dist/index.js` instead of using npx:
       "env": {
         "SITE_NAME": "My Site Name",
         "WPCLI_ALLOW_WRITES": "false",
-        "MYSQL_ALLOW_WRITES": "false"
+        "MYSQL_ALLOW_WRITES": "false",
+        "FS_ALLOW_WRITES": "false"
       }
     }
   }
@@ -164,6 +166,7 @@ Everything else (`env`, server name, `type`) stays the same. Restart Claude Code
 | `SITE_ID` | Site ID from Local (takes precedence over `SITE_NAME`) | — |
 | `WPCLI_ALLOW_WRITES` | Enable write WP-CLI commands (`plugin install`, `post create`, etc.) | `"false"` |
 | `MYSQL_ALLOW_WRITES` | Enable `INSERT`/`UPDATE`/`DELETE`/`ALTER` queries | `"false"` |
+| `FS_ALLOW_WRITES` | Enable writing files via `write_site_file` (WordPress core dirs are always read-only) | `"false"` |
 | `WPCLI_SAFE_COMMANDS` | Comma-separated list of additional read-only commands (see [Plugin CLI commands](#plugin-cli-commands)) | — |
 
 If only one site exists in Local, `SITE_NAME` and `SITE_ID` can both be omitted — the server will connect to it automatically.
