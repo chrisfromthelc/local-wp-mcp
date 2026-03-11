@@ -6,8 +6,8 @@ import { getMysqlSocketPath } from './local-detector.js';
 let pool: Pool | null = null;
 let currentSiteId: string | null = null;
 
-const READ_ONLY_PATTERN = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\s/i;
-const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE|DROP|TRUNCATE|RENAME)\s/i;
+const READ_ONLY_PATTERN = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN|WITH)\s/i;
+const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|CREATE|DROP|TRUNCATE|RENAME|OPTIMIZE|REPAIR)\s/i;
 
 export function createPool(site: LocalSiteConfig): Pool {
   if (pool && currentSiteId === site.id) {
@@ -50,7 +50,7 @@ export async function executeQuery(
 
   if (!READ_ONLY_PATTERN.test(query) && !WRITE_PATTERN.test(query)) {
     throw new Error(
-      `Unrecognized query type. Only SELECT, SHOW, DESCRIBE, EXPLAIN, INSERT, UPDATE, DELETE are supported.`
+      `Unrecognized query type. Supported read queries: SELECT, SHOW, DESCRIBE, EXPLAIN, WITH (CTEs). Write queries (when enabled): INSERT, UPDATE, DELETE, REPLACE, ALTER, CREATE, DROP, TRUNCATE, RENAME, OPTIMIZE, REPAIR.`
     );
   }
 

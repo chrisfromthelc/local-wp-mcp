@@ -23,28 +23,93 @@ const WP_CLI_PHAR_PATHS = [
 ];
 
 // Commands that are always safe (read-only)
+// Matched against the first 1, 2, or 3 space-separated parts of the command.
 const SAFE_COMMANDS = new Set([
+  // Single-word
+  'help', 'server',
+
+  // Core
   'core version', 'core is-installed', 'core check-update',
-  'option get', 'option list',
+
+  // Options
+  'option get', 'option list', 'option pluck',
+
+  // Plugins
   'plugin list', 'plugin status', 'plugin get', 'plugin path', 'plugin search',
+
+  // Themes
   'theme list', 'theme status', 'theme get', 'theme path', 'theme search',
+
+  // Users
   'user list', 'user get',
+  'user meta list', 'user meta get',
+
+  // Posts
   'post list', 'post get',
+  'post meta list', 'post meta get',
+
+  // Post types (hyphenated — still two-part when split by space)
+  'post-type list', 'post-type get',
+
+  // Taxonomies & Terms
+  'taxonomy list', 'taxonomy get',
   'term list', 'term get',
+  'term meta list', 'term meta get',
+
+  // Comments
   'comment list', 'comment get',
-  'menu list', 'menu item list',
+  'comment meta list', 'comment meta get',
+
+  // Media
+  'media list',
+
+  // Menus (menu item = 3-part)
+  'menu list',
+  'menu item list',
+
+  // Config
   'config get', 'config list', 'config path', 'config has',
-  'db tables', 'db size', 'db columns',
+
+  // Database (read-only inspection)
+  'db tables', 'db size', 'db columns', 'db check', 'db prefix',
+
+  // Widgets & Sidebars
   'widget list',
   'sidebar list',
-  'cron event list', 'cron schedule list',
+
+  // Cron (3-part)
+  'cron event list',
+  'cron schedule list',
+
+  // Capabilities & Roles
   'cap list',
   'role list',
+
+  // Rewrites
   'rewrite list',
+
+  // Multisite
   'site list',
+  'site meta list', 'site meta get',
+  'network meta list', 'network meta get',
+  'super-admin list',
+
+  // Transients & Cache
   'transient list', 'transient get',
   'cache type',
-  'server',
+
+  // Languages (3-part)
+  'language core list',
+  'language plugin list',
+  'language theme list',
+
+  // WP-CLI packages
+  'package list',
+
+  // Maintenance mode (read-only status check)
+  'maintenance-mode status',
+
+  // CLI info
   'cli version', 'cli info',
 ]);
 
@@ -94,17 +159,15 @@ function isCommandAllowed(command: string, allowWrites: boolean): { allowed: boo
   const normalized = normalizeCommand(command);
   const parts = normalized.split(' ');
 
-  // Check blocked commands
+  // Check blocked commands (first part only)
   if (BLOCKED_COMMANDS.has(parts[0])) {
     return { allowed: false, reason: `Command "${parts[0]}" is blocked for security (arbitrary code execution).` };
   }
-  if (parts.length >= 1 && BLOCKED_COMMANDS.has(parts[0])) {
-    return { allowed: false, reason: `Command "${parts[0]}" is blocked for security.` };
-  }
 
-  // Check if it's a known safe command
+  // Check if it's a known safe command (3-part, 2-part, then 1-part)
+  const threePartCmd = parts.slice(0, 3).join(' ');
   const twoPartCmd = parts.slice(0, 2).join(' ');
-  if (SAFE_COMMANDS.has(twoPartCmd) || SAFE_COMMANDS.has(parts[0])) {
+  if (SAFE_COMMANDS.has(threePartCmd) || SAFE_COMMANDS.has(twoPartCmd) || SAFE_COMMANDS.has(parts[0])) {
     return { allowed: true };
   }
 
